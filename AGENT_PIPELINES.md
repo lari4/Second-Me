@@ -376,3 +376,264 @@ Metadata (title, summary, keywords)
 
 ---
 
+## L1 - User Profiling Pipeline
+
+**Назначение:** Построение многомерного профиля пользователя на основе анализа воспоминаний, интересов и активностей.
+
+### Shade Creation Pipeline
+
+**Shade** - это грань личности пользователя или область интересов.
+
+#### Схема работы:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    SHADE CREATION PIPELINE                       │
+└─────────────────────────────────────────────────────────────────┘
+
+INPUT: Cluster of user memories (notes, excerpts) related to one interest
+  │
+  ├─> STEP 1: Initial Shade Analysis
+  │   ├─ Prompt: SHADE_INITIAL_PROMPT
+  │   ├─ Input:
+  │   │   - Personal creations (life episodes, feelings, essays)
+  │   │   - Online excerpts (saved content from web)
+  │   │   - Memory IDs and timestamps
+  │   ├─ Process:
+  │   │   1. Identify main interest/hobby theme
+  │   │   2. Generate domain name
+  │   │   3. Determine user's role/aspect (e.g., "Bookworm", "Music Junkie")
+  │   │   4. Choose representative icon (emoji)
+  │   │   5. Write domain description and content
+  │   │   6. Create timeline of interest evolution
+  │   ├─ Output: {
+  │   │     "domainName": "...",
+  │   │     "aspect": "...",
+  │   │     "icon": "🎵",
+  │   │     "domainDesc": "...",
+  │   │     "domainContent": "...",
+  │   │     "domainTimelines": [...]
+  │   │   }
+  │   └─ Purpose: Create structured interest domain analysis
+  │
+  ├─> STEP 2: Perspective Shifting
+  │   ├─ Prompt: PERSON_PERSPECTIVE_SHIFT_V2_PROMPT
+  │   ├─ Input: Shade from Step 1 (third person)
+  │   ├─ Process:
+  │   │   - Convert "User" → "you"
+  │   │   - Make informal and friendly
+  │   │   - Preserve original meaning
+  │   ├─ Output: {
+  │   │     "domainName": "..." (unchanged),
+  │   │     "domainDesc": "You enjoy..." (second person),
+  │   │     "domainContent": "You have..." (second person),
+  │   │     "domainTimeline": [...] (descriptions in second person)
+  │   │   }
+  │   └─ Purpose: Make shade more relatable to user
+  │
+  ├─> STEP 3: Shade Merging (periodic, across all shades)
+  │   ├─ Prompt: SHADE_MERGE_DEFAULT_SYSTEM_PROMPT
+  │   ├─ Input: All existing shades
+  │   ├─ Process:
+  │   │   1. Analyze core characteristics of each shade
+  │   │   2. Identify semantic similarities
+  │   │   3. Find mergeable groups (≥2 shades per group)
+  │   ├─ Output: [
+  │   │     ["shade_id1", "shade_id2"],  // Group 1 to merge
+  │   │     ["shade_id3", "shade_id4"]   // Group 2 to merge
+  │   │   ] or []
+  │   └─ Purpose: Identify shades that should be consolidated
+  │
+  ├─> STEP 4: Execute Merge (for each group from Step 3)
+  │   ├─ Prompt: SHADE_MERGE_PROMPT
+  │   ├─ Input: Multiple (>2) shade analysis contents
+  │   ├─ Process:
+  │   │   1. Identify commonalities
+  │   │   2. Extract general common interest domain
+  │   │   3. Merge timelines from all sources
+  │   │   4. Generate new icon, aspect, description
+  │   ├─ Output: {
+  │   │     "newInterestName": "...",
+  │   │     "newInterestAspect": "...",
+  │   │     "newInterestIcon": "...",
+  │   │     "newInterestDesc": "...",
+  │   │     "newInterestContent": "...",
+  │   │     "newInterestTimelines": [...]
+  │   │   }
+  │   └─ Purpose: Create unified shade from similar interests
+  │
+  └─> STEP 5: Shade Improvement (when new memories added)
+      ├─ Prompt: SHADE_IMPROVE_PROMPT
+      ├─ Input:
+      │   - Existing shade analysis (Pre-Version)
+      │   - New memories
+      │   - Previous memories
+      ├─ Process:
+      │   1. Check relevance of new memories to domain
+      │   2. If relevant: update Description (if needed)
+      │   3. Update Content with new information
+      │   4. Add new timeline entries
+      ├─ Output: {
+      │     "improveDesc": "..." or None,
+      │     "improveContent": "..." or None,
+      │     "improveTimelines": [...] or []
+      │   }
+      └─ Purpose: Incrementally update shade with new data
+
+STORAGE:
+  - Each shade stored in database with ID
+  - Links to source memory IDs
+  - Timeline preserves evolution history
+```
+
+#### Поток данных (полный lifecycle):
+
+```
+                    NEW MEMORIES
+                         │
+                         ↓
+         ┌───────────────────────────┐
+         │  Memory Clustering        │
+         │  (by topic/interest)      │
+         └───────────────────────────┘
+                         │
+        ┌────────────────┴────────────────┐
+        │                                  │
+        ↓                                  ↓
+   NEW CLUSTER                     EXISTING SHADE
+        │                                  │
+        ↓                                  ↓
+[SHADE_INITIAL_PROMPT]            [SHADE_IMPROVE_PROMPT]
+        │                                  │
+        ↓                                  ↓
+[PERSPECTIVE_SHIFT]               Update Desc/Content/Timeline
+        │                                  │
+        ↓                                  ↓
+    NEW SHADE ───────────┬─────────── UPDATED SHADE
+                         │
+                         ↓
+              ┌──────────────────────┐
+              │ ALL SHADES COLLECTION│
+              └──────────────────────┘
+                         │
+                         ↓ (periodic check)
+          [SHADE_MERGE_DEFAULT_SYSTEM_PROMPT]
+                         │
+                         ↓
+              Mergeable groups identified?
+                    /        \
+                 Yes          No
+                  ↓            ↓
+         [SHADE_MERGE_PROMPT]  (keep as is)
+                  ↓
+           Merged shades
+                  ↓
+         Update collection
+```
+
+---
+
+### Biography Generation Pipeline
+
+#### Схема работы:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                  BIOGRAPHY GENERATION PIPELINE                   │
+└─────────────────────────────────────────────────────────────────┘
+
+INPUT: All user shades (interest domains) + Language preference
+  │
+  ├─> STEP 1: Global Biography Generation
+  │   ├─ Prompt: GLOBAL_BIO_SYSTEM_PROMPT
+  │   ├─ Input: For each shade:
+  │   │   - [Name]: Interest Domain Name
+  │   │   - [Aspect]: Interest Domain Aspect
+  │   │   - [Icon]: Representative icon
+  │   │   - [Description]: Brief description
+  │   │   - [Content]: Detailed activities and engagements
+  │   │   - [Timelines]: Evolution timeline with dates
+  │   ├─ Process:
+  │   │   1. Analyze personality traits from interests
+  │   │   2. Overview main interests distribution
+  │   │   3. Speculate on occupation and identity
+  │   ├─ Output: Comprehensive user profile (≤200 words)
+  │   │   - Key personality traits summary
+  │   │   - Main interests overview
+  │   │   - Probable occupation and identity info
+  │   └─ Purpose: Multi-dimensional user profiling
+  │
+  ├─> STEP 2: Language Localization (if needed)
+  │   ├─ Prompt: PREFER_LANGUAGE_SYSTEM_PROMPT
+  │   ├─ Input:
+  │   │   - User's preferred language
+  │   │   - Biography from Step 1
+  │   ├─ Output: Biography in user's language
+  │   │   (proper nouns remain in original language)
+  │   └─ Purpose: Localize while preserving entities
+  │
+  └─> STEP 3: Perspective Conversion
+      ├─ Prompt: COMMON_PERSPECTIVE_SHIFT_SYSTEM_PROMPT
+      ├─ Input: Biography (third person)
+      ├─ Process:
+      │   1. Convert "User" → "you"
+      │   2. Modify descriptions in:
+      │   │   - User's Identity Attributes
+      │   │   - User's Interests and Preferences
+      │   │   - Conclusion
+      │   3. Enhance informality
+      │   4. Maintain original meaning and structure
+      ├─ Output: Second-person biography
+      └─ Purpose: More friendly and relatable profile
+
+OUTPUT:
+  - global_bio: Multi-dimensional user profile
+    - Personality traits
+    - Interest distribution
+    - Occupation speculation
+  - Perspective: Second person ("you")
+  - Language: User's preferred language
+```
+
+---
+
+### Status Bio Pipeline
+
+#### Схема работы:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    STATUS BIO PIPELINE                           │
+└─────────────────────────────────────────────────────────────────┘
+
+INPUT: All user memories (reverse chronological order) + Time period
+  │
+  └─> SINGLE STEP: Status Report Generation
+      ├─ Prompt: STATUS_BIO_SYSTEM_PROMPT
+      ├─ Input:
+      │   - {recent_type} Memory (e.g., "Weekly")
+      │   - Earlier Memory
+      │   - Memory types: Memo, Audio, Reads, Chats, Plan
+      ├─ Process:
+      │   1. Read and analyze all memories
+      │   2. Identify specific activities participated
+      │   3. Merge memories of similar topics
+      │   4. Extract entity names and proper nouns
+      │   5. Analyze physical and emotional state changes
+      │   6. Generate two sections + health status
+      ├─ Priority: Memo > Audio > Reads/Chats > Plan
+      ├─ Output:
+      │   ## User Activities Overview ##
+      │   **{recent_type}**: [paragraph]
+      │   **Earlier**: [paragraph]
+      │   ## Physical and mental health status ##
+      │   [≤50 words]
+      └─ Purpose: Current user status tracking
+
+OUTPUT:
+  - status_bio: User activity status report
+  - Used in: L0 overview generation for contextualization
+```
+
+---
+
