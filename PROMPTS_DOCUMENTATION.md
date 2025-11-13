@@ -1271,5 +1271,218 @@ USR = """
 """
 ```
 
+---
+
+## GraphRAG Prompts
+
+**Расположение:** `lpm_kernel/L2/data_pipeline/graphrag_indexing/prompts/`
+
+GraphRAG - это компонент для построения knowledge graph из пользовательских данных, извлечения сущностей и отношений.
+
+#### 29. `extract_graph.txt`
+
+**Назначение:** Извлечение сущностей и отношений из текстовых документов для построения knowledge graph.
+
+**Ключевые особенности:**
+- Извлекает entities с типами: ORGANIZATION, PERSON, GEO, EVENT, OBJECTS и др.
+- Для каждой entity: name, type, comprehensive description
+- Извлекает relationships между entities
+- Для каждого relationship: source, target, description, strength score (числовой)
+- Выход в специальном формате с tuple_delimiter и record_delimiter
+- Подробные примеры в промте
+
+**Структура output:**
+```
+("entity"{tuple_delimiter}<name>{tuple_delimiter}<type>{tuple_delimiter}<description>)
+{record_delimiter}
+("relationship"{tuple_delimiter}<source>{tuple_delimiter}<target>{tuple_delimiter}<description>{tuple_delimiter}<strength>)
+{completion_delimiter}
+```
+
+**Промт (excerpt):**
+```
+-Goal-
+Given a text document that is potentially relevant to this activity and a list of entity types, identify all entities of those types from the text and all relationships among the identified entities.
+
+-Steps-
+1. Identify all entities...
+2. Identify all pairs of (source_entity, target_entity) that are *clearly related*...
+3. **Return outputs in English (Except some proper entities)...
+4. When finished, output {completion_delimiter}
+
+Entity_types: {entity_types}
+Text: {input_text}
+```
+
+#### 30. `summarize_descriptions.txt`
+
+**Назначение:** Объединение нескольких описаний одной entity в единое, согласованное резюме.
+
+**Ключевые особенности:**
+- Консолидирует описания одной или двух связанных entities
+- Разрешает противоречия в описаниях
+- Включает информацию из всех источников
+- Третье лицо, английский язык
+- Включает имена entities для контекста
+
+**Промт:**
+```
+You are a helpful assistant responsible for generating a comprehensive summary of the data provided below.
+Given one or two entities, and a list of descriptions, all related to the same entity or group of entities.
+Please concatenate all of these into a single, comprehensive description. Make sure to include information collected from all the descriptions.
+If the provided descriptions are contradictory, please resolve the contradictions and provide a single, coherent summary.
+Make sure it is written in third person and in English, and include the entity names so we have the full context.
+
+Entities: {entity_name}
+Description List: {description_list}
+Output:
+```
+
+---
+
+## L2 - Data Pipeline Prompts
+
+**Расположение:** `lpm_kernel/L2/data_pipeline/data_prep/`
+
+Эти промты используются для генерации обучающих данных для L2 модели.
+
+### Context Data Generation
+
+**Файлы:** `context_data/prompt.py`
+
+#### Основные промты:
+- **`expert_response_prompt`**: Генерация ответов эксперта
+- **`topicGenPrompt`**: Генерация тем для обсуждения
+- **`user_request_prompt`**: Генерация запросов пользователя
+- **`user_feedback_prompt`**: Оценка feedback от steward
+- **`needs_prompt`**: Определение потребностей пользователя по иерархии Маслоу
+- **`find_related_note_todos__SYS_ZH/EN`**: Поиск релевантных заметок и задач (китайский/английский)
+- **`context_enhance_prompt_zh/en`**: Обогащение запроса личным контекстом
+- **`coarse_grained_prompt_a/b`**: Стратегии feedback (грубозернистые)
+- **`fine_grained_prompt_a/b/c`**: Стратегии feedback (детализированные)
+
+### Preference Data Generation
+
+**Файлы:** `preference/prompts.py`
+
+#### Основные промты:
+- **`CH_USR_TEMPLATES` & `EN_USR_TEMPLATES`**: Шаблоны вопросов/ответов пользователя
+- **`CH_SYS_TEMPLATES` & `EN_SYS_TEMPLATES`**: Системные инструкции
+- **`CH_USR_COT_TEMPLATES` & `EN_USR_COT_TEMPLATES`**: Chain-of-thought версии
+
+Генерируют Q&A пары из профилей пользователей и базы знаний.
+
+### SelfQA Data Generation
+
+**Файлы:** `selfqa/selfqa_prompt.py`
+
+#### Основные промты:
+- **`system_prompt_cn/en`**: "Second Me" system prompts для chat
+- **`system_cot_prompt_cn/en`**: Chain-of-thought версии
+
+Создает персонализированные диалоги, где AI отвечает как "Second Me" пользователя.
+
+### Diversity Data Generation
+
+**Файлы:** `diversity/template_diversity.py`
+
+#### Основные промты:
+- **`Q_GENERATE_TEMPLATE`**: Генерация вопросов из AI conversations
+- **`A_GENERATE_TEMPLATE`**: Генерация ответов от перспективы пользователя
+- **`A_GENERATE_COT_TEMPLATE`**: Chain-of-thought answer generation
+- **`ENG_Q_GENERATE_TEMPLATE` & `ENG_A_GENERATE_TEMPLATE`**: Английские версии
+- **`SHOT_1`, `SHOT_2`, `COT_SHOT_1`, `COT_SHOT_2`**: Example outputs
+
+---
+
+## API Service Prompts
+
+**Расположение:** `lpm_kernel/api/domains/`
+
+Промты, используемые в runtime для обработки запросов пользователей.
+
+### Advanced Prompt Strategies
+
+**Файл:** `kernel2/services/advanced_prompt_strategies.py`
+
+#### Multi-phase Chat Processing:
+
+**31. `RequirementEnhancementStrategy`**
+- **Назначение**: Улучшение расплывчатых требований с ясностью и контекстом
+- Фазы: user requirement → clarified requirement
+
+**32. `ExpertSolutionStrategy`**
+- **Назначение**: Генерация экспертных решений
+- Фазы: clarified requirement → expert solution
+
+**33. `SolutionValidatorStrategy`**
+- **Назначение**: Валидация решений с JSON feedback
+- JSON output: "is_satisfactory" (bool), "feedback" (str)
+
+**34. `SolutionFormatterStrategy`**
+- **Назначение**: Форматирование решений для читаемости
+
+### Prompt Builder Strategies
+
+**Файл:** `kernel2/services/prompt_builder.py`
+
+#### System Prompt Construction:
+
+**35. `BasePromptStrategy`**
+- Базовая экстракция system prompt
+
+**36. `ContextEnhancedStrategy`**
+- Context enhancement с CONTEXT_PROMPT
+
+**37. `ContextCriticStrategy`**
+- Context criticism с JUDGE_PROMPT
+
+**38. `RoleBasedStrategy`**
+- Кастомизация промтов по ролям
+
+**39. `KnowledgeEnhancedStrategy`**
+- Интеграция knowledge retrieval (L0/L1)
+
+### Space Discussion Strategies
+
+**Файл:** `space/strategies/host_strategies.py`
+
+#### Multi-party Discussion:
+
+**40. `HostOpeningStrategy`**
+- **Назначение**: Opening statements для дискуссий
+- Представляет пользователя в multi-party discussion
+
+**41. `HostSummaryStrategy`**
+- **Назначение**: Summary generation для раундов дискуссии
+- Генерирует резюме после каждого раунда
+
+---
+
+## Заключение
+
+Система **Second Me** использует сложную иерархию промтов для создания персонализированного AI-ассистента:
+
+### Основные категории:
+1. **L0 (Insight Generation)**: Мультимодальная обработка контента (изображения, аудио, документы)
+2. **L1 (User Profiling)**: Построение биографии и профилирование пользователя
+3. **L2 (Personalized Interaction)**: Персонализированные диалоги и обогащение запросов
+4. **Data Pipeline**: Генерация обучающих данных
+5. **GraphRAG**: Построение knowledge graph
+6. **API Services**: Runtime processing и multi-phase strategies
+
+### Ключевые паттерны:
+- **Chain-of-Thought (CoT)**: Многие промты используют `<think>` и `<answer>` теги
+- **Multilingual**: Поддержка китайского и английского языков
+- **Personalization**: Все промты используют user biography, memories, и preferences
+- **Perspective Shifting**: Конвертация между первым, вторым и третьим лицом
+- **Multi-phase Processing**: Сложные задачи разбиваются на несколько фаз
+
+### Типы ролей AI:
+- **"Second Me"** (DPO version): Личный ассистент пользователя
+- **"Me.bot"** (Training version): Butler и assistant
+- **Friend**: Старый друг (для insights)
+- **Expert**: Специалист в определенной области
+- **Steward**: Оценщик feedback
 
 
