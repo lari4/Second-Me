@@ -637,3 +637,369 @@ OUTPUT:
 
 ---
 
+## L2 - Chat Processing Pipeline
+
+**Назначение:** Персонализированное взаимодействие с пользователем через контекстное обогащение запросов и память.
+
+### Context Enhancement Pipeline
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                 CONTEXT ENHANCEMENT PIPELINE                     │
+└─────────────────────────────────────────────────────────────────┘
+
+INPUT: User's vague/general request
+  │
+  ├─> STEP 1: Retrieve Relevant Context
+  │   ├─ Query: Vector search in user's memories
+  │   ├─ Input: User request embedding
+  │   ├─ Output: Top-K relevant notes, todos, past conversations
+  │   └─ Sources: L0 memories, L1 shades, global_bio, status_bio
+  │
+  ├─> STEP 2 (CoT version): Enrich Request
+  │   ├─ Prompt: CONTEXT_COT_PROMPT
+  │   ├─ Input:
+  │   │   - User's initial request
+  │   │   - Retrieved context (personal info, preferences, history)
+  │   │   - User biography (global_bio)
+  │   ├─ Process (Chain-of-Thought):
+  │   │   <think>
+  │   │   1. Analyze focus of initial requirements
+  │   │   2. Find connections to user's background
+  │   │   3. Plan how to use this info to refine
+  │   │   </think>
+  │   │   <answer>
+  │   │   Refined requirement (first person, same form)
+  │   │   </answer>
+  │   └─ Output: Enhanced, specific, personalized request
+  │
+  └─> OR STEP 2 (Non-CoT): Direct Enhancement
+      ├─ Prompt: CONTEXT_PROMPT
+      ├─ Output: Enhanced request (no thinking process shown)
+      └─ Use case: When CoT overhead not needed
+
+OUTPUT: Personalized, context-rich request
+  - Maintains original form (request/imperative)
+  - Uses first person ("I", "my")
+  - Adds relevant personal details
+  - More specific and natural
+```
+
+**Key Points:**
+- НЕ генерирует ответы - только уточняет требования
+- Сохраняет форму выражения пользователя
+- Добавляет только релевантный контекст
+
+---
+
+### Judge (Expert Interface) Pipeline
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                  JUDGE/EXPERT INTERFACE PIPELINE                 │
+└─────────────────────────────────────────────────────────────────┘
+
+USER REQUEST → EXPERT SOLUTION
+  │                │
+  │                ↓
+  │    ┌─────────────────────┐
+  │    │  Expert's Response  │
+  │    └─────────────────────┘
+  │                │
+  └────────────────┴──→ JUDGE EVALUATION
+                        │
+                        ↓
+              [JUDGE_COT_PROMPT]
+                        │
+              <think>
+              1. Review user background & preferences
+              2. Assess if expert response meets needs
+              3. Determine if feedback/supplement needed
+              </think>
+                        │
+              <answer>
+              - If satisfied: Polite acknowledgment
+              - If not: Feedback + additional user info
+              </answer>
+                        │
+                        ↓
+              Response to Expert
+              (on behalf of user)
+
+FLOW:
+1. User → "Second Me" → Enhanced request → Expert
+2. Expert → Response → "Second Me" → Evaluation
+3. "Second Me" → Feedback to expert OR Acceptance
+4. Loop until user needs satisfied
+```
+
+**Использование:**
+- "Second Me" = посредник между user и expert
+- Предоставляет дополнительный контекст о пользователе
+- Может запросить уточнения от эксперта
+- Защищает интересы пользователя
+
+---
+
+### Memory Q&A Pipeline
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                     MEMORY Q&A PIPELINE                          │
+└─────────────────────────────────────────────────────────────────┘
+
+INPUT: User question about their own data/history
+  │
+  ├─> STEP 1: Memory Retrieval
+  │   ├─ Vector search: Find relevant memories
+  │   ├─ Graph search: Find connected entities
+  │   ├─ Filter: By date, type, tags
+  │   └─ Output: Relevant memories, notes, todos
+  │
+  └─> STEP 2: Answer Generation
+      ├─ Prompt: MEMORY_COT_PROMPT
+      ├─ Input:
+      │   - User question
+      │   - Retrieved memories
+      │   - User biography
+      │   - Past records
+      ├─ Process:
+      │   <think>
+      │   1. Analyze connection between question and background
+      │   2. Reason based on historical data
+      │   3. Ensure accuracy and relevance
+      │   </think>
+      │   <answer>
+      │   Precise, systematic, high-density answer
+      │   </answer>
+      └─ Output: Personalized answer based on memory
+
+Criteria:
+- Accuracy: Must cite sources from memories
+- Helpfulness: Provide additional knowledge
+- Comprehensiveness: Cover all relevant aspects
+- Empathy: Show understanding and care
+```
+
+---
+
+## GraphRAG Indexing Pipeline
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    GRAPHRAG INDEXING PIPELINE                    │
+└─────────────────────────────────────────────────────────────────┘
+
+INPUT: User's text documents/notes
+  │
+  ├─> STEP 1: Entity & Relationship Extraction
+  │   ├─ Prompt: extract_graph.txt
+  │   ├─ Input:
+  │   │   - Text document
+  │   │   - Entity types: [ORGANIZATION, PERSON, GEO, EVENT, ...]
+  │   ├─ Process:
+  │   │   1. Identify all entities with descriptions
+  │   │   2. Find all related entity pairs
+  │   │   3. Describe relationships
+  │   │   4. Assign relationship strength (score)
+  │   ├─ Output:
+  │   │   ("entity"{tuple_delimiter}NAME{tuple_delimiter}TYPE{tuple_delimiter}DESC)
+  │   │   ("relationship"{tuple_delimiter}SOURCE{tuple_delimiter}TARGET{tuple_delimiter}DESC{tuple_delimiter}STRENGTH)
+  │   └─ Purpose: Extract knowledge graph from text
+  │
+  ├─> STEP 2: Entity Description Consolidation
+  │   ├─ Prompt: summarize_descriptions.txt
+  │   ├─ Input:
+  │   │   - Entity name(s)
+  │   │   - List of descriptions from different sources
+  │   ├─ Process:
+  │   │   1. Concatenate all descriptions
+  │   │   2. Resolve contradictions
+  │   │   3. Create coherent summary
+  │   ├─ Output: Single comprehensive entity description
+  │   └─ Purpose: Merge duplicate entities
+  │
+  ├─> STEP 3: Graph Construction
+  │   ├─ Create nodes for entities
+  │   ├─ Create edges for relationships
+  │   ├─ Add properties: type, description, strength
+  │   └─ Store in graph database (Neo4j, etc.)
+  │
+  └─> STEP 4: Community Detection (optional)
+      ├─ Leiden algorithm for clustering
+      ├─ Identify communities of related entities
+      └─ Generate community summaries
+
+RESULT: Knowledge Graph
+  - Nodes: Entities with rich descriptions
+  - Edges: Weighted relationships
+  - Communities: Thematic clusters
+  - Enables: Semantic search, Q&A, reasoning
+```
+
+**Data Flow:**
+```
+Documents → [extract_graph] → Entities + Relationships
+                                    │
+                                    ↓
+                        Group by entity name
+                                    │
+                                    ↓
+              [summarize_descriptions] → Merged entities
+                                    │
+                                    ↓
+                            Graph Database
+                                    │
+                ┌───────────────────┼───────────────────┐
+                ↓                   ↓                   ↓
+          Vector Index      Community Index      Full Graph
+                ↓                   ↓                   ↓
+         Semantic Search    Thematic Q&A        Graph Reasoning
+```
+
+---
+
+## Space Discussion Pipeline
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                   SPACE DISCUSSION PIPELINE                      │
+└─────────────────────────────────────────────────────────────────┘
+
+Multi-party AI discussion where "Second Me" represents the user
+
+SETUP:
+  - Topic: Discussion subject
+  - Participants: User's "Second Me" + Other AI agents/experts
+  - Rounds: Multiple turns of discussion
+
+FLOW:
+  │
+  ├─> ROUND START: Host Opening
+  │   ├─ Prompt: HostOpeningStrategy
+  │   ├─ Input:
+  │   │   - Discussion topic
+  │   │   - User's perspective/interests (from global_bio)
+  │   │   - Context from previous rounds (if any)
+  │   ├─ Output: Opening statement representing user
+  │   └─ Purpose: Introduce user's viewpoint
+  │
+  ├─> DISCUSSION: Multi-turn exchange
+  │   ├─ Participants take turns
+  │   ├─ "Second Me" responds based on:
+  │   │   - User's bio and preferences
+  │   │   - Previous statements in discussion
+  │   │   - User's shades and interests
+  │   └─ Maintains user's voice and perspective
+  │
+  └─> ROUND END: Summary Generation
+      ├─ Prompt: HostSummaryStrategy
+      ├─ Input: All statements from current round
+      ├─ Output: Summary of key points
+      │   - What was discussed
+      │   - Agreements and disagreements
+      │   - User's position
+      └─ Purpose: Consolidate round insights
+
+COMPLETE FLOW:
+  Topic → Opening → Discussion → Summary
+            ↓          ↓            ↓
+        Round 1 → Round 2 → ... → Round N
+            ↓          ↓            ↓
+         Summaries accumulate → Final synthesis
+```
+
+**Purpose:**
+- Represent user in multi-party discussions
+- Maintain consistent user perspective
+- Enable asynchronous collaboration
+- Generate discussion summaries
+
+---
+
+## Summary: Complete Second Me System
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                  COMPLETE SECOND ME SYSTEM                       │
+└─────────────────────────────────────────────────────────────────┘
+
+USER INPUTS (Multimodal)
+  │
+  ├─ Images ────────────────────┐
+  ├─ Audio ─────────────────────┤
+  ├─ Documents ─────────────────┤ → L0 INSIGHT GENERATION
+  └─ Notes ─────────────────────┘      │
+                                       ↓
+                               Processed Insights
+                               (Title, Overview, Breakdown)
+                                       │
+                                       ↓
+                            ┌──────────────────────┐
+                            │   MEMORY STORAGE     │
+                            │  (Vector Database)   │
+                            └──────────────────────┘
+                                       │
+                        ┌──────────────┼──────────────┐
+                        ↓              ↓              ↓
+                   L1 PROFILING   GraphRAG     L2 RETRIEVAL
+                        │         Indexing          │
+                        ↓              ↓            ↓
+                   ┌─────────┐   ┌─────────┐  ┌─────────┐
+                   │ Shades  │   │  Graph  │  │Context  │
+                   │Global   │   │  Nodes  │  │Enhanced │
+                   │Bio      │   │  Edges  │  │Requests │
+                   │Status   │   │Communities│ └─────────┘
+                   └─────────┘   └─────────┘       │
+                        │              │           │
+                        └──────┬───────┴───────────┘
+                               ↓
+                      ┌─────────────────┐
+                      │  USER PROFILE   │
+                      │  (Complete)     │
+                      └─────────────────┘
+                               │
+                ┌──────────────┼──────────────┐
+                ↓              ↓              ↓
+         CHAT INTERFACE   SPACE DISCUSSIONS  DPO TRAINING
+         (Context+Judge)  (Multi-party)      (Preference)
+                ↓              ↓              ↓
+         Personalized    User Represented   Model Improved
+         Responses       in Discussions     Over Time
+```
+
+**Key Integration Points:**
+
+1. **L0 → L1**: Insights feed shade creation and status tracking
+2. **L1 → L2**: Biography enables context enhancement
+3. **All → GraphRAG**: Continuous knowledge graph building
+4. **L0 + L1 → Chat**: Rich context for personalized responses
+5. **DPO**: Continuous improvement through preference learning
+
+---
+
+## Conclusion
+
+Система **Second Me** реализует сложную многоуровневую архитектуру обработки данных:
+
+### Уровни обработки:
+- **L0**: Multimodal insight extraction (сырые данные → инсайты)
+- **L1**: User profiling (инсайты → профиль пользователя)
+- **L2**: Personalized interaction (профиль + запрос → персонализированный ответ)
+
+### Ключевые пайплайны:
+1. **Insight Generation**: Image/Audio/Doc → Structured insights
+2. **Shade Management**: Memories → Interest domains → Biography
+3. **Context Enhancement**: Vague request → Specific, personalized request
+4. **Memory Q&A**: Question → Memory retrieval → Accurate answer
+5. **GraphRAG**: Documents → Knowledge graph → Semantic reasoning
+6. **Space Discussion**: Topic → Multi-agent discussion → Summary
+
+### Паттерны реализации:
+- **Chain-of-Thought**: Explicit reasoning before answers
+- **Multi-phase Processing**: Complex tasks split into steps
+- **Incremental Updates**: Shades improve with new data
+- **Perspective Shifting**: Third person → Second person conversion
+- **Merging & Consolidation**: Duplicate detection and combining
+
+Вся система работает вместе для создания персонализированного AI-ассистента, который **понимает**, **запоминает**, и **представляет** пользователя.
